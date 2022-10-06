@@ -42,6 +42,7 @@ TEL_NOTIFICATIONS = 'notify'
 TEL_USERS = 'users'
 TEL_VISA = 'visa'
 TEL_NOTE = 'note'
+TEL_READED = 'read'
 
 TEL_STAFF = 'staff'
 

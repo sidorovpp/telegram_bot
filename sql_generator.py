@@ -1,46 +1,47 @@
-import tel_consts
+import tel_consts as tc
 import re
 
 
 class SQLGenerator:
     def __init__(self):
         self.proc_list = {
-            tel_consts.TEL_USERS: get_users,
-            tel_consts.TEL_START: start,
+            tc.TEL_USERS: get_users,
+            tc.TEL_START: start,
 
-            tel_consts.TEL_VISA: get_visa,
-            tel_consts.TEL_NOTE: note,
+            tc.TEL_VISA: get_visa,
+            tc.TEL_NOTE: get_note,
 
-            tel_consts.TEL_NEW_TASKS: new_tasks,
-            tel_consts.TEL_TASK: get_task,
-            tel_consts.TEL_READ_TASK: read_task,
+            tc.TEL_NEW_TASKS: get_new_tasks,
+            tc.TEL_TASK: get_task,
+            tc.TEL_READ_TASK: get_read_task,
 
-            tel_consts.TEL_NEW_ACCOUNTS: new_accounts,
-            tel_consts.TEL_ACCOUNT: get_account,
-            tel_consts.TEL_AGREE_ACCOUNT: agree_account,
-            tel_consts.TEL_DISAGREE_ACCOUNT: disagree_account,
-            tel_consts.TEL_IGNORE_ACCOUNT: ignore_account,
+            tc.TEL_NEW_ACCOUNTS: get_new_accounts,
+            tc.TEL_ACCOUNT: get_account,
+            tc.TEL_AGREE_ACCOUNT: get_agree_account,
+            tc.TEL_DISAGREE_ACCOUNT: get_disagree_account,
+            tc.TEL_IGNORE_ACCOUNT: get_ignore_account,
 
-            tel_consts.TEL_NEW_COORDINATIONS: new_coordinations,
-            tel_consts.TEL_COORDINATION: get_coordination,
-            tel_consts.TEL_AGREE_COORDINATION: agree_coordination,
-            tel_consts.TEL_DISAGREE_COORDINATION: disagree_coordination,
-            tel_consts.TEL_BACK_COORDINATION: back_coordination,
+            tc.TEL_NEW_COORDINATIONS: get_new_coordinations,
+            tc.TEL_COORDINATION: get_coordination,
+            tc.TEL_AGREE_COORDINATION: get_agree_coordination,
+            tc.TEL_DISAGREE_COORDINATION: get_disagree_coordination,
+            tc.TEL_BACK_COORDINATION: get_back_coordination,
 
-            tel_consts.TEL_DOCUMENTS: get_documents,
-            tel_consts.TEL_DOCUMENT: get_document,
+            tc.TEL_DOCUMENTS: get_documents,
+            tc.TEL_DOCUMENT: get_document,
 
-            tel_consts.TEL_CLIENTS: get_clients,
-            tel_consts.TEL_CLIENT: get_client,
+            tc.TEL_CLIENTS: get_clients,
+            tc.TEL_CLIENT: get_client,
 
-            tel_consts.TEL_STAFF: get_staff,
+            tc.TEL_STAFF: get_staff,
 
-            tel_consts.TEL_NOTIFICATIONS: get_notifications,
+            tc.TEL_NOTIFICATIONS: get_notifications,
+            tc.TEL_READED: get_readed,
 
-            tel_consts.TEL_FILES: get_files,
-            tel_consts.TEL_FILES_FOLER: get_files_folder,
-            tel_consts.TEL_UPDATE_FILE: update_file_ident,
-            tel_consts.TEL_INSERT_FILE: tel_insert_file,
+            tc.TEL_FILES: get_files,
+            tc.TEL_FILES_FOLER: get_files_folder,
+            tc.TEL_UPDATE_FILE: update_file_ident,
+            tc.TEL_INSERT_FILE: tel_insert_file,
         }
 
     # возвращаем sql текст по идентификатору
@@ -52,6 +53,16 @@ class SQLGenerator:
 
         if ident in self.proc_list.keys():
             return self.proc_list[ident](**kwargs)
+
+
+# возвращаем текст для поиска из параметров
+def get_text_from_params(**kwargs):
+    text = ''
+    if 'text' in kwargs.keys():
+        text = kwargs['text']
+    if ('ext' in kwargs.keys()) and (kwargs['ext'] != 0):
+        text = '{"Notify":"' + str(kwargs['ext']) + '"}'
+    return text
 
 
 # ищем пользователя
@@ -68,10 +79,7 @@ def get_users(**kwargs):
 
 # список сотрудников
 def get_staff(**kwargs):
-    if ('ext' in kwargs.keys()) and (kwargs['ext'] != 0):
-        text = '{"Notify":"' + str(kwargs['ext']) + '"}'
-    else:
-        text = kwargs['text']
+    text = get_text_from_params(**kwargs)
     s = "exec tel_GetStaff '{login}', '{text}'".format(login=kwargs['login'], text=text)
     return s
 
@@ -114,11 +122,9 @@ def update_file_ident(**kwargs):
 
 
 # новые задачи
-def new_tasks(**kwargs):
-    if 'text' in kwargs.keys():
-        return "exec tel_GetDisposals '{login}', '{text}'".format(login=kwargs['login'], text=kwargs['text'])
-    else:
-        return "exec tel_GetDisposals '{login}'".format(login=kwargs['login'])
+def get_new_tasks(**kwargs):
+    text = get_text_from_params(**kwargs)
+    return "exec tel_GetDisposals '{login}', '{text}'".format(login=kwargs['login'], text=text)
 
 
 # задача
@@ -127,17 +133,13 @@ def get_task(**kwargs):
 
 
 # прочитанность
-def read_task(**kwargs):
+def get_read_task(**kwargs):
     return "exec tel_SetDisposalReaded {_id}, '{login}'".format(_id=kwargs['_id'], login=kwargs['login'])
 
 
 # новые счета
-def new_accounts(**kwargs):
-    text = ''
-    if 'text' in kwargs.keys():
-        text = kwargs['text']
-    if ('ext' in kwargs.keys()) and (kwargs['ext'] != 0):
-        text = '{"Notify":"' + str(kwargs['ext']) + '"}'
+def get_new_accounts(**kwargs):
+    text = get_text_from_params(**kwargs)
     return "exec tel_GetAccounts '{login}', '{text}'".format(login=kwargs['login'], text=text)
 
 
@@ -147,22 +149,22 @@ def get_account(**kwargs):
 
 
 # Согласование счёта
-def agree_account(**kwargs):
+def get_agree_account(**kwargs):
     return "exec tel_SetAccountVisa {_id}, '{login}', 11".format(_id=kwargs['_id'], login=kwargs['login'])
 
 
 # Согласование счёта
-def disagree_account(**kwargs):
+def get_disagree_account(**kwargs):
     return "exec tel_SetAccountVisa {_id}, '{login}', 12".format(_id=kwargs['_id'], login=kwargs['login'])
 
 
 # Согласование счёта
-def ignore_account(**kwargs):
+def get_ignore_account(**kwargs):
     return "exec tel_SetAccountVisa {_id}, '{login}', 82".format(_id=kwargs['_id'], login=kwargs['login'])
 
 
 # Перерписка
-def note(**kwargs):
+def get_note(**kwargs):
     return "exec tel_AddNote {_id}, '{login}', {_type}, '{text}'".format(
         _id=kwargs['_id'],
         login=kwargs['login'],
@@ -180,16 +182,17 @@ def get_notifications(**kwargs):
 
 # Визы
 def get_visa(**kwargs):
-    return "exec tel_GetVisa {_type}, '{_id}'".format(_id=kwargs['_id'], _type=kwargs['_type'])
+    return "exec tel_GetVisa {_type}, {_id}".format(_id=kwargs['_id'], _type=kwargs['_type'])
+
+
+# прочитали
+def get_readed(**kwargs):
+    return "exec tel_GetReaded {_type}, {_id}".format(_id=kwargs['_id'], _type=kwargs['_type'])
 
 
 # несогласованные документы
-def new_coordinations(**kwargs):
-    text = ''
-    if 'text' in kwargs.keys():
-        text = kwargs['text']
-    if ('ext' in kwargs.keys()) and (kwargs['ext'] != 0):
-        text = '{"Notify":"' + str(kwargs['ext']) + '"}'
+def get_new_coordinations(**kwargs):
+    text = get_text_from_params(**kwargs)
     return "exec tel_GetDocCoordinations '{login}', '{text}'".format(login=kwargs['login'], text=text)
 
 
@@ -199,17 +202,17 @@ def get_coordination(**kwargs):
 
 
 # Согласование документа
-def agree_coordination(**kwargs):
+def get_agree_coordination(**kwargs):
     return "exec tel_SetCoordinationVisa {_id}, '{login}', 293".format(_id=kwargs['_id'], login=kwargs['login'])
 
 
 # Согласование документа
-def disagree_coordination(**kwargs):
+def get_disagree_coordination(**kwargs):
     return "exec tel_SetCoordinationVisa {_id}, '{login}', 294".format(_id=kwargs['_id'], login=kwargs['login'])
 
 
 # Согласование документа
-def back_coordination(**kwargs):
+def get_back_coordination(**kwargs):
     return "exec tel_SetCoordinationVisa {_id}, '{login}', 295".format(_id=kwargs['_id'], login=kwargs['login'])
 
 
@@ -225,11 +228,7 @@ def get_document(**kwargs):
 
 # поиск клиентов
 def get_clients(**kwargs):
-    text = ''
-    if 'text' in kwargs.keys():
-        text = kwargs['text']
-    if ('ext' in kwargs.keys()) and (kwargs['ext'] != 0):
-        text = '{"Notify":"' + str(kwargs['ext']) + '"}'
+    text = get_text_from_params(**kwargs)
     return "exec tel_GetClients '{login}', '{text}'".format(login=kwargs['login'], text=text)
 
 
