@@ -5,6 +5,7 @@ from sql_generator import SQLGenerator
 from sql_execute import SQLExecuter
 
 
+# упаковка стандартных параметров в JSON строку
 def get_json_params(ident, _id=0, _type=0, ext=0):
     d = dict()
     d['ident'] = ident
@@ -14,6 +15,7 @@ def get_json_params(ident, _id=0, _type=0, ext=0):
     return json.dumps(d)
 
 
+# добавление параметров из JSON
 def parse_params(ident, **kwargs):
     # считываем параметры
     params = json.loads(ident)
@@ -24,10 +26,25 @@ def parse_params(ident, **kwargs):
     return params
 
 
+# замена символов для тагов внутри текста, чтобы не ломать html разметку
 def replace_symbols(text: str):
     if text:
         text = text.replace('<', '&lt;')
         text = text.replace('>', '&gt;')
+    return text
+
+
+# переписка  документу
+def get_doc_with_notes(format_str, frame):
+    text = format_str
+    if not frame.empty:
+        if frame['NoteUser'][0] is not None:
+            for i, row in frame.iterrows():
+                text = text + '\n\n<b>{NoteUser}</b>  <i>{NoteDate}</i>\n{NoteText}'.format(
+                    NoteUser=row['NoteUser'],
+                    NoteText=replace_symbols(row['NoteText']),
+                    NoteDate=row['NoteDate'],
+                )
     return text
 
 
@@ -101,19 +118,6 @@ class AnswersGenerator:
                 text = text + '\n\n'
         return text, [], []
 
-    # переписка  документу
-    def get_doc_with_notes(self, format_str, frame):
-        text = format_str
-        if not frame.empty:
-            if frame['NoteUser'][0] is not None:
-                for i, row in frame.iterrows():
-                    text = text + '\n\n<b>{NoteUser}</b>  <i>{NoteDate}</i>\n{NoteText}'.format(
-                        NoteUser=row['NoteUser'],
-                        NoteText=replace_symbols(row['NoteText']),
-                        NoteDate=row['NoteDate'],
-                    )
-        return text
-
     # получаем список файлов
     def get_files(self, ident, **kwargs):
         files = []
@@ -169,7 +173,7 @@ class AnswersGenerator:
                         SenderFirmName=frame['SenderFirmName'][0],
                     )
 
-            text = self.get_doc_with_notes(text, frame)
+            text = get_doc_with_notes(text, frame)
 
             keyboard = [[InlineKeyboardButton(y[0], callback_data=get_json_params(**y[1])) for y in x]
                         for x in keyboard_items]
@@ -239,7 +243,7 @@ class AnswersGenerator:
                 Description=replace_symbols(frame['Description'][0]),
             )
 
-            text = self.get_doc_with_notes(text, frame)
+            text = get_doc_with_notes(text, frame)
 
             keyboard = [[InlineKeyboardButton(y[0], callback_data=get_json_params(**y[1])) for y in x]
                         for x in keyboard_items]
@@ -304,6 +308,8 @@ class AnswersGenerator:
                     r = tc.TEL_CLIENTS
                 case tc.TEL_COORDINATION_REG_ID:
                     r = tc.TEL_NEW_COORDINATIONS
+                case tc.TEL_TASK_REG_ID:
+                    r = tc.TEL_NEW_TASKS
             return r
 
         frame = self.get_data_frame(ident, login=kwargs['login'], date=kwargs['date'])
@@ -425,7 +431,7 @@ class AnswersGenerator:
                         DocText=replace_symbols(frame['DocText'][0]),
                         InitFIO=frame['InitFIO'][0]
                     )
-            text = self.get_doc_with_notes(text, frame)
+            text = get_doc_with_notes(text, frame)
             if not frame['IsCoord'][0]:
                 keyboard_items.pop(0)
             keyboard = [[InlineKeyboardButton(y[0], callback_data=get_json_params(**y[1])) for y in x]
@@ -464,7 +470,7 @@ class AnswersGenerator:
                         TypeName=frame['TypeName'][0],
                         Description=replace_symbols(frame['Description'][0]),
                     )
-            text = self.get_doc_with_notes(text, frame)
+            text = get_doc_with_notes(text, frame)
             keyboard = [
                 [
                     InlineKeyboardButton("Файлы",
@@ -500,7 +506,7 @@ class AnswersGenerator:
                         MainPhone=frame['MainPhone'][0],
                         AdditionalPhone=frame['AdditionalPhone'][0],
                     )
-            text = self.get_doc_with_notes(text, frame)
+            text = get_doc_with_notes(text, frame)
             keyboard = [
                 [
                     InlineKeyboardButton("Файлы",

@@ -133,7 +133,7 @@ async def send_message(bot: Bot, message: Message, chat_id: int, text: str,
                                              file_ident=mes.document.file_id,
                                              login=login)
     # пишем отправку в лог
-    logging.info('Сообщение в чат {chat_id}: {text}'.format(chat_id=chat_id, text=text[:30:]))
+    logging.info('Сообщение в чат {chat_id}: {text}'.format(chat_id=chat_id, text=text[:100:]))
 
 
 # получаем ответ по идентификатору и отправляем сообщение
