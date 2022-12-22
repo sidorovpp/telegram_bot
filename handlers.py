@@ -272,7 +272,7 @@ async def document_handler(update: Update, context: tel.ContextTypes.DEFAULT_TYP
             i = 0
             while exists(file_name):
                 split = splitext(file_name)
-                print(split)
+                # print(split)
                 file_name = join(file_dir, split[0] + str(i) + split[1])
                 i = i + 1
 

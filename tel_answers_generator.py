@@ -161,18 +161,8 @@ class AnswersGenerator:
             ]
         frame = self.get_data_frame(ident, **kwargs)
         if not frame.empty:
-            text = '<b>{Number}{State}</b>\n{Urgency}\n\n{SenderFirmName}\n' \
-                   '<i>{Sender} ➡ {Receiver}</i>\n\n<b>{Theme}</b>\n\n{Zadanie}'.format(
-                        Number=frame['Number'][0],
-                        Theme=replace_symbols(frame['Theme'][0]),
-                        Zadanie=replace_symbols(frame['Zadanie'][0]),
-                        Sender=frame['Sender'][0],
-                        Receiver=frame['Receiver'][0],
-                        Urgency=frame['Urgency'][0] if frame['Urgency_id'][0] != 6 else frame['Urgency'][0] + '❗',
-                        State=tc.TEL_TASK_STATES[frame['CurrentState'][0]],
-                        SenderFirmName=frame['SenderFirmName'][0],
-                    )
-
+            urg = '❗' if frame['UrgencyID'][0] == 6 else ''
+            text = tc.TEL_TASK_STATES[frame['CurrentStateID'][0]] + urg + frame['Info'][0]
             text = get_doc_with_notes(text, frame)
 
             keyboard = [[InlineKeyboardButton(y[0], callback_data=get_json_params(**y[1])) for y in x]
@@ -235,14 +225,7 @@ class AnswersGenerator:
 
         frame = self.get_data_frame(ident, _id=kwargs['_id'], login=kwargs['login'])
         if not frame.empty:
-            text = '<b>{Number}</b>\n\n<i>{FirmName}</i>\n\n<b>{ClientName}</b>\n\n{Summa}\n\n{Description}'.format(
-                Number=frame['Number'][0],
-                FirmName=frame['FirmName'][0],
-                ClientName=frame['ClientName'][0],
-                Summa=frame['Summa'][0],
-                Description=replace_symbols(frame['Description'][0]),
-            )
-
+            text = frame['Info'][0]
             text = get_doc_with_notes(text, frame)
 
             keyboard = [[InlineKeyboardButton(y[0], callback_data=get_json_params(**y[1])) for y in x]
@@ -422,15 +405,7 @@ class AnswersGenerator:
 
         frame = self.get_data_frame(ident, _id=kwargs['_id'], login=kwargs['login'])
         if not frame.empty:
-            text = '<b>{Number}</b>\n\n<i>{Theme}</i>\n\n<b>' \
-                   '{ClientName}</b>\n\n<b>{InitFIO}</b>\n\n{Summa}\n\n{DocText}'.format(
-                        Number=frame['Number'][0],
-                        Theme=frame['Theme'][0],
-                        ClientName=frame['ClientName'][0],
-                        Summa=frame['Summa'][0],
-                        DocText=replace_symbols(frame['DocText'][0]),
-                        InitFIO=frame['InitFIO'][0]
-                    )
+            text = frame['Info'][0]
             text = get_doc_with_notes(text, frame)
             if not frame['IsCoord'][0]:
                 keyboard_items.pop(0)
@@ -463,13 +438,7 @@ class AnswersGenerator:
     def get_document(self, ident, **kwargs):
         frame = self.get_data_frame(ident, _id=kwargs['_id'], login=kwargs['login'])
         if not frame.empty:
-            text = '<b>{Code}</b>\n\n<i>{GroupName}</i>\n\n<i>' \
-                   '{TypeName}</i>\n\n<b>{Description}</b>'.format(
-                        Code=frame['Code'][0],
-                        GroupName=frame['GroupName'][0],
-                        TypeName=frame['TypeName'][0],
-                        Description=replace_symbols(frame['Description'][0]),
-                    )
+            text = frame['Info'][0]
             text = get_doc_with_notes(text, frame)
             keyboard = [
                 [
@@ -500,12 +469,7 @@ class AnswersGenerator:
     def get_client(self, ident, **kwargs):
         frame = self.get_data_frame(ident, _id=kwargs['_id'], login=kwargs['login'])
         if not frame.empty:
-            text = '<b>{FIO}</b>\n\n<i>{MainPhone}</i>\n\n<i>' \
-                   '{AdditionalPhone}</i>'.format(
-                        FIO=frame['FIO'][0],
-                        MainPhone=frame['MainPhone'][0],
-                        AdditionalPhone=frame['AdditionalPhone'][0],
-                    )
+            text = frame['Info'][0]
             text = get_doc_with_notes(text, frame)
             keyboard = [
                 [
