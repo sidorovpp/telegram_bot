@@ -1,3 +1,4 @@
+import json
 import logging
 import traceback
 from telegram import Update, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, InlineKeyboardButton, Bot
@@ -8,6 +9,177 @@ from os.path import join, exists, splitext
 from datetime import datetime
 import tel_consts as tc
 from tel_answers_generator import answers_generator, get_json_params, parse_params
+from tel_menu import get_main_menu, make_buttons_menu
+
+THEME, TEXT, URGENCY, RECEIVER_TEXT, RECEIVER, WORKGROUP_TEXT, WORKGROUP = range(10000, 10007)
+
+
+# класс для обработки добавления новой задачи
+class TaskHandler:
+    def __init__(self):
+        self.user_data = {}
+        self.urgency_items = \
+            [
+                [["Срочно", 6]],
+                [["Очень важно", 1]],
+                [["Важно", 2]],
+                [["Нормально", 3]],
+                [["Не важно", 4]],
+            ]
+
+        self.conv_handler = tel.ConversationHandler(
+            entry_points=[tel.MessageHandler(tel.filters.Regex("(?i)^Новая задача$"), self.new_task)],
+            allow_reentry=True,
+            states={
+                THEME: [tel.MessageHandler(tel.filters.TEXT, self.task_theme)],
+                TEXT: [tel.MessageHandler(tel.filters.TEXT, self.task_text)],
+                URGENCY: [tel.CallbackQueryHandler(self.task_urgency)],
+                RECEIVER_TEXT: [tel.MessageHandler(tel.filters.TEXT, self.task_receiver_text)],
+                RECEIVER: [tel.CallbackQueryHandler(self.task_receiver)],
+                WORKGROUP_TEXT: [tel.MessageHandler(tel.filters.TEXT, self.task_work_group_text)],
+                WORKGROUP: [tel.CallbackQueryHandler(self.task_work_group)]
+            },
+
+            fallbacks=[tel.MessageHandler(tel.filters.Regex("(?i)^Отмена$"), self.task_cancel)]
+        )
+
+    # отмена
+    async def task_cancel(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            self.user_data[update.message.from_user.username] = []
+            await update.message.reply_text('Создание задачи отменено')
+            return tel.ConversationHandler.END
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
+
+    # старт
+    async def new_task(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            self.user_data[update.message.from_user.username] = {}
+            await update.message.reply_text('Тема задачи:')
+            return THEME
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
+
+    # тема
+    async def task_theme(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            self.user_data[update.message.from_user.username]['theme'] = update.message.text
+            await update.message.reply_text('Текст задачи:')
+            return TEXT
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
+
+    #текст
+    async def task_text(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            self.user_data[update.message.from_user.username]['task'] = update.message.text
+            keyboard = [[InlineKeyboardButton(y[0], callback_data=y[1]) for y in x]
+                        for x in self.urgency_items]
+            await update.message.reply_text('Важность задачи:', reply_markup=InlineKeyboardMarkup(keyboard))
+            return URGENCY
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
+
+    # важность
+    async def task_urgency(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            self.user_data[update.callback_query.from_user.username]['urgency'] = update.callback_query.data
+            await update.callback_query.message.reply_text('Получатель (часть ФИО для поиска):')
+            await update.callback_query.answer('')
+            return RECEIVER_TEXT
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
+
+    # получатель текст
+    async def task_receiver_text(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            self.user_data[update.message.from_user.username]['receiver_text'] = update.message.text
+            frame = answers_generator.get_frame(tc.TEL_FIND_STAFF, text = update.message.text)
+            if len(frame) == 0:
+                await update.message.reply_text('Получатель не найден!')
+                return RECEIVER_TEXT
+            items = []
+            for index, row in frame.iterrows():
+                items.append([[row['FIO'], row['id']]])
+            keyboard = [[InlineKeyboardButton(y[0], callback_data=y[1]) for y in x]
+                        for x in items]
+            await update.message.reply_text('Выберите получателя:', reply_markup=InlineKeyboardMarkup(keyboard))
+            return RECEIVER
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
+
+    # получатель
+    async def task_receiver(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            user = update.callback_query.from_user.username
+            self.user_data[user]['receiver'] = update.callback_query.data
+            await update.callback_query.message.reply_text('Рабочая группа (часть названия для поиска):')
+            await update.callback_query.answer('')
+            return WORKGROUP_TEXT
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
+
+    # рабочая группа текст
+    async def task_work_group_text(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            self.user_data[update.message.from_user.username]['work_group_text'] = update.message.text
+            frame = answers_generator.get_frame(tc.TEL_FIND_WORK_GROUP, text = update.message.text)
+            if len(frame) == 0:
+                await update.message.reply_text('Рабочая группа не найдена!')
+                return RECEIVER_TEXT
+            items = []
+            for index, row in frame.iterrows():
+                items.append([[row['Name'], row['id']]])
+            keyboard = [[InlineKeyboardButton(y[0], callback_data=y[1]) for y in x]
+                        for x in items]
+            await update.message.reply_text('Выберите рабочую группу:', reply_markup=InlineKeyboardMarkup(keyboard))
+            return WORKGROUP
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
+
+
+    # рабочая группа
+    async def task_work_group(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
+        try:
+            user = update.callback_query.from_user.username
+            self.user_data[user]['work_group'] = update.callback_query.data
+            frame = answers_generator.get_frame(tc.TEL_ADD_TASK,
+                                                login='@' + user,
+                                                theme=self.user_data[user]['theme'],
+                                                task=self.user_data[user]['task'],
+                                                urgency=self.user_data[user]['urgency'],
+                                                receiver=self.user_data[user]['receiver'],
+                                                work_group=self.user_data[user]['work_group']
+                                                )
+            items = [[["📓 Посмотреть", get_json_params(
+                ident=tc.TEL_TASK,
+                _id=int(frame['task_id'].values[0]))]]]
+            keyboard = [[InlineKeyboardButton(y[0], callback_data=y[1]) for y in x]
+                        for x in items]
+            await update.callback_query.message.reply_text('Готово!', reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.callback_query.answer('')
+            return tel.ConversationHandler.END
+        except (Exception,):
+            logging.error(traceback.format_exc())
+            await send_error(context, traceback.format_exc())
+            return tel.ConversationHandler.END
 
 
 def check_user(user_name, chat_id):
@@ -38,9 +210,7 @@ async def start(update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> None:
             # отказ
             await update.message.reply_text('Неизвестный пользователь!')
         else:
-            keyboard = [
-                ['Документы', 'Задачи', 'Счета'],
-            ]
+            keyboard = make_buttons_menu(get_main_menu('Главное меню'))
             await update.message.reply_text(
                 "Что будем смотреть?\nПомощь: /help",
                 reply_markup=ReplyKeyboardMarkup(keyboard, selective=False, resize_keyboard=True,
@@ -136,9 +306,19 @@ async def send_message(bot: Bot, message: Message, chat_id: int, text: str,
     logging.info('Сообщение в чат {chat_id}: {text}'.format(chat_id=chat_id, text=text[:100:]))
 
 
+# подменяем клавиатуру по меню
+async def replace_keyboard(menu: int, item: int, _id: int, message: Message):
+    keyboard_items = answers_generator.menu.get_keyboard_items(menu, item, _id)
+    keyboard = [[InlineKeyboardButton(y[0], callback_data=get_json_params(**y[1])) for y in x]
+                for x in keyboard_items]
+    await message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+
+
 # получаем ответ по идентификатору и отправляем сообщение
 async def reply_by_ident(ident, bot, message, chat_id, login, **kwargs):
     res = answers_generator.get_answer(ident, login=login, **kwargs)
+    if res is None:
+        return
     if type(res) == tuple:
         # один ответ
         text, keyboard, files = res
@@ -177,6 +357,15 @@ async def query_handler(update: Update, context: tel.ContextTypes.DEFAULT_TYPE) 
         if command:
             if command == 'поиск':
                 text = text1[1:len(text1) - 1:]
+
+        # проверяем меню
+        params = json.loads(update.callback_query.data)
+        if params['ident'] == tc.TEL_MENU:
+            await replace_keyboard(menu=params['_type'],
+                                   item=params['ext'],
+                                   _id=params['_id'],
+                                   message=update.callback_query.message)
+            return
 
         # загружаем ответ
         await reply_by_ident(update.callback_query.data,
@@ -217,6 +406,7 @@ async def select_search(update: Update, context: tel.ContextTypes.DEFAULT_TYPE, 
         ["🔍 Регламенты", tc.TEL_DOCUMENTS],
         ["🔍 Счета", tc.TEL_NEW_ACCOUNTS],
         ["🔍 Документы", tc.TEL_NEW_COORDINATIONS],
+        ["🔍 Заявки", tc.TEL_PETITIONS],
     ]
 
     await context.bot.send_message(
@@ -244,7 +434,7 @@ async def document_handler(update: Update, context: tel.ContextTypes.DEFAULT_TYP
             _id = params['_id']
 
             # поулчаем папку для записи файла
-            frame = answers_generator.get_data_frame(tc.TEL_FILES_FOLER)
+            frame = answers_generator.get_data_frame(tc.TEL_FILES_FOLDER)
             if frame.empty:
                 return
             file_name = ''
@@ -296,8 +486,22 @@ async def document_handler(update: Update, context: tel.ContextTypes.DEFAULT_TYP
 # Функция-обработчик текста
 async def text_handler(update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> None:
     try:
-        # стандартные команды текстом
+        if update.message is None:
+            return
         if update.message.reply_to_message is None:
+            # сначала смотрим меню
+            menu = get_main_menu(update.message.text)
+            if menu:
+                keyboard = make_buttons_menu(menu)
+                await update.message.reply_text(
+                    "Выберите кнопку",
+                    reply_markup=ReplyKeyboardMarkup(keyboard, selective=False, resize_keyboard=True,
+                                                     one_time_keyboard=False)
+                )
+                return
+
+            # если не меню - смотрим команды
+            # command_list -стандартные команды текстом
             command, text = get_command(update.message.text.lower(), tc.command_list)
             # не ищем короткий текст
             if (text != '') and (len(text.strip()) < 5):
@@ -380,5 +584,6 @@ def start_jobs(job_queue):
     # получаем список и регистрируем job на рассылку
     frame = answers_generator.get_answer(get_json_params(ident=tc.TEL_USERS))
     for i, row in frame.iterrows():
+        # c = {'username': row['Login'], 'date': datetime.now() + timedelta(days=-1)}
         c = {'username': row['Login'], 'date': datetime.now()}
         job_queue.run_repeating(callback_notifications, interval=120, first=10, data=c, chat_id=row['Chat_id'])

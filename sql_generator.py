@@ -14,6 +14,9 @@ class SQLGenerator:
             tc.TEL_NEW_TASKS: get_new_tasks,
             tc.TEL_TASK: get_task,
             tc.TEL_READ_TASK: get_read_task,
+            tc.TEL_READED: get_readed,
+            tc.TEL_ADD_TASK: get_add_task,
+            tc.TEL_FIND_WORK_GROUP: get_find_work_group,
 
             tc.TEL_NEW_ACCOUNTS: get_new_accounts,
             tc.TEL_ACCOUNT: get_account,
@@ -27,6 +30,11 @@ class SQLGenerator:
             tc.TEL_DISAGREE_COORDINATION: get_disagree_coordination,
             tc.TEL_BACK_COORDINATION: get_back_coordination,
 
+            tc.TEL_PETITIONS: get_petitions,
+            tc.TEL_PETITION: get_petition,
+            tc.TEL_PETITION_GRAPH: get_petition_graph,
+            tc.TEL_PETITION_CLIENTS: get_petition_clients,
+
             tc.TEL_DOCUMENTS: get_documents,
             tc.TEL_DOCUMENT: get_document,
 
@@ -34,14 +42,18 @@ class SQLGenerator:
             tc.TEL_CLIENT: get_client,
 
             tc.TEL_STAFF: get_staff,
+            tc.TEL_FIND_STAFF: get_find_staff,
 
             tc.TEL_NOTIFICATIONS: get_notifications,
-            tc.TEL_READED: get_readed,
+            tc.TEL_READ_NOTIFY: get_read_notify,
 
             tc.TEL_FILES: get_files,
-            tc.TEL_FILES_FOLER: get_files_folder,
+            tc.TEL_FILES_FOLDER: get_files_folder,
             tc.TEL_UPDATE_FILE: update_file_ident,
             tc.TEL_INSERT_FILE: tel_insert_file,
+
+            tc.TEL_VISA_MENU: get_visa_menu,
+            tc.TEL_SET_VISA: get_set_visa,
         }
 
     # возвращаем sql текст по идентификатору
@@ -63,6 +75,15 @@ def get_text_from_params(**kwargs):
     if ('ext' in kwargs.keys()) and (kwargs['ext'] != 0):
         text = '{"Notify":"' + str(kwargs['ext']) + '"}'
     return text
+
+
+# возвращаем mode, если есть, иначе 0 - стандартный режим
+def get_mode_from_params(**kwargs):
+    if 'mode' in kwargs.keys():
+        res = kwargs['mode']
+    else:
+        res = 0
+    return res
 
 
 # ищем пользователя
@@ -123,8 +144,10 @@ def update_file_ident(**kwargs):
 
 # новые задачи
 def get_new_tasks(**kwargs):
-    text = get_text_from_params(**kwargs)
-    return "exec tel_GetDisposals '{login}', '{text}'".format(login=kwargs['login'], text=text)
+    return "exec tel_GetDisposals '{login}', '{text}', {mode}".format(
+        login=kwargs['login'],
+        text=get_text_from_params(**kwargs),
+        mode=get_mode_from_params(**kwargs))
 
 
 # задача
@@ -139,8 +162,9 @@ def get_read_task(**kwargs):
 
 # новые счета
 def get_new_accounts(**kwargs):
-    text = get_text_from_params(**kwargs)
-    return "exec tel_GetAccounts '{login}', '{text}'".format(login=kwargs['login'], text=text)
+    return "exec tel_GetAccounts '{login}', '{text}'".format(
+        login=kwargs['login'],
+        text=get_text_from_params(**kwargs))
 
 
 # счёт
@@ -178,6 +202,13 @@ def get_notifications(**kwargs):
     return "exec tel_GetNotifications '{login}', '{date}'".format(
         login=kwargs['login'],
         date=kwargs['date'].strftime("%Y%m%d %H:%M:%S"))
+
+
+# Уведомления
+def get_read_notify(**kwargs):
+    return "exec tel_SetNotifyReaded '{_id}', '{login}'".format(
+        _id=kwargs['_id'],
+        login=kwargs['login'])
 
 
 # Визы
@@ -235,3 +266,62 @@ def get_clients(**kwargs):
 # клиент
 def get_client(**kwargs):
     return "exec tel_GetClient {_id}, '{login}'".format(_id=kwargs['_id'], login=kwargs['login'])
+
+
+# загрузка меню по визам
+def get_visa_menu(**kwargs):
+    return "exec tel_GetVisaMenu {_type}, '{login}'".format(_type=kwargs['_type'], login=kwargs['login'])
+
+
+# устанавливаем визу
+def get_set_visa(**kwargs):
+    return "exec tel_SetVisa {_id}, '{login}', {_type}, {ext}".format(
+        _type=kwargs['_type'],
+        login=kwargs['login'],
+        _id=kwargs['_id'],
+        ext=kwargs['ext'])
+
+
+# заявки на продажу квартир
+def get_petitions(**kwargs):
+    return "exec tel_GetPetitions '{login}', '{text}', {mode}".format(
+        login=kwargs['login'],
+        text=kwargs['text'],
+        mode=get_mode_from_params(**kwargs))
+
+
+# заявка на продажу квартир
+def get_petition(**kwargs):
+    return "exec tel_GetPetition {_id}, '{login}'".format(_id=kwargs['_id'], login=kwargs['login'])
+
+
+# график платежей по заявке
+def get_petition_graph(**kwargs):
+    return "exec tel_GetPetitionGraph {_id}, '{login}'".format(_id=kwargs['_id'], login=kwargs['login'])
+
+
+# клиенты по заявке
+def get_petition_clients(**kwargs):
+    return "exec tel_GetPetitionClients {_id}, '{login}'".format(_id=kwargs['_id'], login=kwargs['login'])
+
+
+# поиск сотрудника
+def get_find_staff(**kwargs):
+    return "exec tel_FindStaff '{text}'".format(text=kwargs['text'])
+
+
+# поиск раблчей группы
+def get_find_work_group(**kwargs):
+    return "exec tel_FindWorkGroup '{text}'".format(text=kwargs['text'])
+
+
+# создание новой задачи
+def get_add_task(**kwargs):
+    return "exec tel_AddTask '{login}', '{theme}', '{task}', {receiver}, {urgency}, {work_group}".format(
+        login=kwargs['login'],
+        theme=kwargs['theme'],
+        task=kwargs['task'],
+        receiver=kwargs['receiver'],
+        urgency=kwargs['urgency'],
+        work_group=kwargs['work_group']
+    )
