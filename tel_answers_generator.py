@@ -101,6 +101,8 @@ class AnswersGenerator:
             tc.TEL_FILES: self.get_files,
 
             tc.TEL_SET_VISA: self.get_set_visa,
+
+            tc.TEL_SPECIFICATION: self.get_specification,
         }
 
     def exec_empty(self, ident, **kwargs):
@@ -235,6 +237,8 @@ class AnswersGenerator:
                 return self.get_account(tc.TEL_ACCOUNT, _id=kwargs['_id'], login=kwargs['login'])
             case tc.TEL_COORDINATION_ID:
                 return self.get_coordination(tc.TEL_COORDINATION, _id=kwargs['_id'], login=kwargs['login'])
+            case tc.TEL_PETITION_ID:
+                return self.get_petition(tc.TEL_PETITION, _id=kwargs['_id'], login=kwargs['login'])
 
     # визируем счёт
     def get_agree_account(self, ident, **kwargs):
@@ -371,7 +375,7 @@ class AnswersGenerator:
                     keyboard_items = \
                         [
                             [
-                                ["📖 Прочитано", {"ident": tc.TEL_READ_NOTIFY, "ext": row['_id']}]
+                                ["📖 Прочитано", {"ident": tc.TEL_READ_NOTIFY, "_id": row['_id']}]
                             ]
                         ]
                 keyboard = [[InlineKeyboardButton(y[0], callback_data=get_json_params(**y[1])) for y in x]
@@ -629,6 +633,15 @@ class AnswersGenerator:
         kwargs['ident'] = tc.TEL_PETITIONS
         kwargs['mode'] = 5
         return self.get_petitions(**kwargs)
+
+    # заявка
+    def get_specification(self, ident, **kwargs):
+        frame = self.get_data_frame(ident, text=kwargs['text'], login=kwargs['login'])
+        if not frame.empty:
+            text = frame['Info'][0].format_map(tc.img_lib)
+        else:
+            text = 'Спецификация не найдена'
+        return text, [], []
 
 
 answers_generator = AnswersGenerator()

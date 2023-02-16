@@ -13,6 +13,7 @@ import traceback
 import asyncio
 import sys
 from tendo import singleton
+from telegram.warnings import PTBUserWarning
 
 
 def start():
@@ -32,8 +33,9 @@ def start():
     with open(tc.TEL_CONFIG, 'r') as f:
         config = json.load(f)
 
-    # отключаю warning pandas
-    warnings.filterwarnings('ignore', 'pandas only supports')
+    # отключаю warning
+    warnings.filterwarnings(action='ignore', message='pandas only supports')
+    warnings.filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
     level = logging.INFO
     if 'level' in config.keys():
         level = config['level']
@@ -58,7 +60,12 @@ def start():
 
     try:
         # подключение к базе генератора ответов
-        answers_generator.sql_executor = SQLExecuter(config['connect_string'])
+        answers_generator.sql_executor = SQLExecuter(
+            config['server'],
+            config['database'],
+            config['user'],
+            config['password'],
+        )
 
         # создание бота
         application = tel.Application.builder().token(config['token']).build()

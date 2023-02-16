@@ -76,6 +76,8 @@ TEL_MENU = 'menu'
 TEL_VISA_MENU = 'visa_menu'
 TEL_SET_VISA = 'set_visa'
 
+TEL_SPECIFICATION = 'spec'
+
 # соответсвие команды и действия
 command_list = {
     'задача': TEL_NEW_TASKS,
@@ -97,6 +99,7 @@ command_list = {
     'заявки отклонено': TEL_PETITIONS_DISAGREE,
     'мои заявки': TEL_PETITIONS_MY,
     'заявки руководителю': TEL_PETITIONS_DIR,
+    'код': TEL_SPECIFICATION,
 }
 
 # соовтетствие идентификатора и действий (множественное и одиночное)

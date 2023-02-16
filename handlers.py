@@ -1,15 +1,15 @@
+import io
 import json
 import logging
 import traceback
 from telegram import Update, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, InlineKeyboardButton, Bot
 from telegram.constants import ParseMode
 import telegram.ext as tel
-from pathlib import Path
-from os.path import join, exists, splitext
 from datetime import datetime
 import tel_consts as tc
 from tel_answers_generator import answers_generator, get_json_params, parse_params
 from tel_menu import get_main_menu, make_buttons_menu
+from utils import get_shared_file, create_shared_file, read_qr_code
 
 THEME, TEXT, URGENCY, RECEIVER_TEXT, RECEIVER, WORKGROUP_TEXT, WORKGROUP = range(10000, 10007)
 
@@ -76,7 +76,7 @@ class TaskHandler:
             await send_error(context, traceback.format_exc())
             return tel.ConversationHandler.END
 
-    #текст
+    # текст
     async def task_text(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
         try:
             self.user_data[update.message.from_user.username]['task'] = update.message.text
@@ -105,7 +105,7 @@ class TaskHandler:
     async def task_receiver_text(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
         try:
             self.user_data[update.message.from_user.username]['receiver_text'] = update.message.text
-            frame = answers_generator.get_frame(tc.TEL_FIND_STAFF, text = update.message.text)
+            frame = answers_generator.get_frame(tc.TEL_FIND_STAFF, text=update.message.text)
             if len(frame) == 0:
                 await update.message.reply_text('Получатель не найден!')
                 return RECEIVER_TEXT
@@ -138,7 +138,7 @@ class TaskHandler:
     async def task_work_group_text(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
         try:
             self.user_data[update.message.from_user.username]['work_group_text'] = update.message.text
-            frame = answers_generator.get_frame(tc.TEL_FIND_WORK_GROUP, text = update.message.text)
+            frame = answers_generator.get_frame(tc.TEL_FIND_WORK_GROUP, text=update.message.text)
             if len(frame) == 0:
                 await update.message.reply_text('Рабочая группа не найдена!')
                 return RECEIVER_TEXT
@@ -153,7 +153,6 @@ class TaskHandler:
             logging.error(traceback.format_exc())
             await send_error(context, traceback.format_exc())
             return tel.ConversationHandler.END
-
 
     # рабочая группа
     async def task_work_group(self, update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> int:
@@ -281,22 +280,30 @@ async def send_message(bot: Bot, message: Message, chat_id: int, text: str,
     # файлы
     if files:
         for ff in files:
+            sended = False
             if ff['TelegramIdent'] is not None:
-                await bot.send_document(
-                    document=ff['TelegramIdent'],
-                    caption=ff['Description'],
-                    reply_to_message_id=message_id,
-                    chat_id=chat_id
-                )
-            else:
+                try:
+                    await bot.send_document(
+                        document=ff['TelegramIdent'],
+                        caption=ff['Description'],
+                        reply_to_message_id=message_id,
+                        chat_id=chat_id
+                    )
+                    sended = True
+                except (Exception,):
+                    sended = False
+            if not sended:
+                f = get_shared_file(ff['FileName'])
+                f.seek(0)
                 mes = await bot.send_document(
-                    document=open(ff['FileName'], 'rb'),
+                    document=f,
                     read_timeout=70,
                     write_timeout=60,
                     caption=ff['Description'],
                     reply_to_message_id=message_id,
                     chat_id=chat_id
                 )
+                f.close()
                 # записывем в файл id в Telegram
                 answers_generator.exec_empty(ident=tc.TEL_UPDATE_FILE,
                                              _id=ff['_id'],
@@ -407,6 +414,7 @@ async def select_search(update: Update, context: tel.ContextTypes.DEFAULT_TYPE, 
         ["🔍 Счета", tc.TEL_NEW_ACCOUNTS],
         ["🔍 Документы", tc.TEL_NEW_COORDINATIONS],
         ["🔍 Заявки", tc.TEL_PETITIONS],
+        ["🔍 Спецификация", tc.TEL_SPECIFICATION],
     ]
 
     await context.bot.send_message(
@@ -423,9 +431,36 @@ async def select_search(update: Update, context: tel.ContextTypes.DEFAULT_TYPE, 
 async def document_handler(update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -> None:
     try:
         if not update.message.reply_to_message:
-            await update.message.reply_text('Чтобы прикрепить файл - ответьте на сообщение, '
-                                            'к которому надо прикрепить файл!')
+            # пробуем считать QR
+            check = False
+
+            if update.message.photo:
+                file_name = 'image.png'
+                file_id = update.message.photo[-1].file_id
+
+                # записываем файл
+                file = await context.bot.get_file(file_id)
+                await file.download_to_drive(file_name)
+                # читаем код
+                value = read_qr_code(file_name)
+                if value:
+                    check = True
+                    value = value.decode("utf-8")
+                    await update.message.reply_text(value)
+                    await reply_by_ident(get_json_params(tc.TEL_SPECIFICATION),
+                                         context.bot,
+                                         update.message,
+                                         update.message.chat_id,
+                                         '@' + update.message.from_user.username,
+                                         text=value)
+
+            # не обработано
+            if not check:
+                await update.message.reply_text('Чтобы прикрепить файл - ответьте на сообщение, '
+                                                'к которому надо прикрепить файл!')
             return
+
+        # отвечаем на сообщение - добавляем в файлы
         kb = update.message.reply_to_message.reply_markup.inline_keyboard
         if (len(kb) > 0) and (len(kb[0]) > 0):
             # из кнопки парсим id
@@ -451,25 +486,18 @@ async def document_handler(update: Update, context: tel.ContextTypes.DEFAULT_TYP
             if not file_id:
                 return
 
+            # не использую os.join и прочее - чтобы собрать строку под windows в Linux
+            # строка нужна в формате Windows для сохранения в базе
             # создаём папку по дате
             date_dir = datetime.strftime(datetime.now(), '%Y_%m_%d')
-            file_dir = join(frame['s'][0], date_dir)
-            Path(file_dir).mkdir(parents=True, exist_ok=True)
-
-            file_name = join(file_dir, file_name)
-
-            # генерируем уникальное имя файла добавляя в конце номер
-            i = 0
-            while exists(file_name):
-                split = splitext(file_name)
-                # print(split)
-                file_name = join(file_dir, split[0] + str(i) + split[1])
-                i = i + 1
-
+            file_dir = frame['s'][0] + '\\' + date_dir
             # записываем файл
             file = await context.bot.get_file(file_id)
-            with open(file_name, 'wb+') as _f:
-                await file.download(out=_f)
+            f = io.BytesIO()
+            await file.download_to_memory(f)
+            f.seek(0)
+            create_shared_file(file_dir, file_name, f)
+            file_name = file_dir + '\\' + file_name
 
             # вставляем запись в таблицу
             answers_generator.exec_empty(tc.TEL_INSERT_FILE,
@@ -524,23 +552,29 @@ async def text_handler(update: Update, context: tel.ContextTypes.DEFAULT_TYPE) -
                 # await update.message.reply_text('Сообщение не обработано')
         # ищем сообщение, на которое ответили
         else:
-            kb = update.message.reply_to_message.reply_markup.inline_keyboard
-            if (len(kb) > 0) and (len(kb[0]) > 0):
-                # из кнопки парсим id
-                params = parse_params(kb[0][0].callback_data)
-                # добавляем переписку
-                ident = tc.TEL_NOTE
-                _type = params['_type']
+            sended = False
+            if update.message.reply_to_message.reply_markup:
+                kb = update.message.reply_to_message.reply_markup.inline_keyboard
+                if (len(kb) > 0) and (len(kb[0]) > 0):
+                    # из кнопки парсим id
+                    params = parse_params(kb[0][0].callback_data)
+                    # добавляем переписку
+                    ident = tc.TEL_NOTE
+                    _type = params['_type']
 
-                if _type != 0:
-                    await reply_by_ident(
-                        get_json_params(ident=ident, _id=params['_id'], _type=_type),
-                        context.bot,
-                        update.message,
-                        update.message.chat_id,
-                        '@' + update.message.from_user.username,
-                        text=update.message.text
-                    )
+                    sended = True
+                    if _type != 0:
+                        await reply_by_ident(
+                            get_json_params(ident=ident, _id=params['_id'], _type=_type),
+                            context.bot,
+                            update.message,
+                            update.message.chat_id,
+                            '@' + update.message.from_user.username,
+                            text=update.message.text
+                        )
+            if not sended:
+                await context.bot.send_message(update.message.chat_id, 'Для добавления переписки отвечать надо на '
+                                                                       'сообщение, под которым расположены кнопки.')
     except (Exception,):
         logging.error(traceback.format_exc())
         await send_error(context, traceback.format_exc())

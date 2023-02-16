@@ -54,6 +54,8 @@ class SQLGenerator:
 
             tc.TEL_VISA_MENU: get_visa_menu,
             tc.TEL_SET_VISA: get_set_visa,
+
+            tc.TEL_SPECIFICATION: get_specification,
         }
 
     # возвращаем sql текст по идентификатору
@@ -112,6 +114,8 @@ def get_files_folder(**kwargs):
 
 
 def tel_insert_file(**kwargs):
+    if not kwargs['description']:
+        kwargs['description'] = ''
     s = "exec tel_InsertFile {_type}, {_id}, '{file_name}', '{login}', '{description}'".format(
         _id=kwargs['_id'],
         login=kwargs['login'],
@@ -124,7 +128,7 @@ def tel_insert_file(**kwargs):
 
 # список файлов
 def get_files(**kwargs):
-    s = "tel_GetFiles {_type}, {_id}, '{login}'".format(
+    s = "exec tel_GetFiles {_type}, {_id}, '{login}'".format(
         _type=kwargs['_type'],
         _id=kwargs['_id'],
         login=kwargs['login'],
@@ -324,4 +328,12 @@ def get_add_task(**kwargs):
         receiver=kwargs['receiver'],
         urgency=kwargs['urgency'],
         work_group=kwargs['work_group']
+    )
+
+
+# поиск спецификации
+def get_specification(**kwargs):
+    return "exec tel_GetSpecification '{text}', '{login}'".format(
+        text=kwargs['text'],
+        login=kwargs['login']
     )
