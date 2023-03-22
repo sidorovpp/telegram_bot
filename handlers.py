@@ -4,6 +4,7 @@ import logging
 import traceback
 from telegram import Update, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, InlineKeyboardButton, Bot
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 import telegram.ext as tel
 from datetime import datetime
 import tel_consts as tc
@@ -261,21 +262,41 @@ async def send_message(bot: Bot, message: Message, chat_id: int, text: str,
         if (k1 - 1 < k) and (k1 != -1):
             temp = temp[:len(temp) - k1 - 1:]
 
+        # пытаюсь отправить как HTML, в случае ощшибки - кидаю как обычный текст
+        try:
+            await bot.send_message(
+                text=temp,
+                parse_mode=ParseMode.HTML,
+                reply_to_message_id=message_id,
+                chat_id=chat_id
+            )
+        except BadRequest:
+            await bot.send_message(
+                text=temp,
+                parse_mode=None,
+                reply_to_message_id=message_id,
+                chat_id=chat_id
+            )
+
+        text = text[len(temp)::]
+    # последняя часть с кнопками
+
+    # пытаюсь отправить как HTML, в случае ощшибки - кидаю как обычный текст
+    try:
+        await bot.send_message(
+            text=text,
+            parse_mode=ParseMode.HTML,
+            reply_to_message_id=message_id,
+            chat_id=chat_id,
+            reply_markup=reply_markup
+        )
+    except BadRequest:
         await bot.send_message(
             text=temp,
-            parse_mode=ParseMode.HTML,
+            parse_mode=None,
             reply_to_message_id=message_id,
             chat_id=chat_id
         )
-        text = text[len(temp)::]
-    # последняя часть с кнопками
-    await bot.send_message(
-        text=text,
-        parse_mode=ParseMode.HTML,
-        reply_to_message_id=message_id,
-        chat_id=chat_id,
-        reply_markup=reply_markup
-    )
 
     # файлы
     if files:
@@ -294,21 +315,22 @@ async def send_message(bot: Bot, message: Message, chat_id: int, text: str,
                     sended = False
             if not sended:
                 f = get_shared_file(ff['FileName'])
-                f.seek(0)
-                mes = await bot.send_document(
-                    document=f,
-                    read_timeout=70,
-                    write_timeout=60,
-                    caption=ff['Description'],
-                    reply_to_message_id=message_id,
-                    chat_id=chat_id
-                )
-                f.close()
-                # записывем в файл id в Telegram
-                answers_generator.exec_empty(ident=tc.TEL_UPDATE_FILE,
-                                             _id=ff['_id'],
-                                             file_ident=mes.document.file_id,
-                                             login=login)
+                if f:
+                    f.seek(0)
+                    mes = await bot.send_document(
+                        document=f,
+                        read_timeout=70,
+                        write_timeout=60,
+                        caption=ff['Description'],
+                        reply_to_message_id=message_id,
+                        chat_id=chat_id
+                    )
+                    f.close()
+                    # записывем в файл id в Telegram
+                    answers_generator.exec_empty(ident=tc.TEL_UPDATE_FILE,
+                                                 _id=ff['_id'],
+                                                 file_ident=mes.document.file_id,
+                                                 login=login)
     # пишем отправку в лог
     logging.info('Сообщение в чат {chat_id}: {text}'.format(chat_id=chat_id, text=text[:100:]))
 
