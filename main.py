@@ -14,6 +14,7 @@ import asyncio
 import sys
 from tendo import singleton
 from telegram.warnings import PTBUserWarning
+import conversation
 
 
 def start():
@@ -71,8 +72,14 @@ def start():
         application = tel.Application.builder().token(config['token']).build()
 
         # обработка Conversation
-        th = handlers.TaskHandler()
-        application.add_handler(th.conv_handler)
+        h = conversation.TaskHandler()
+        application.add_handler(h.conv_handler)
+        h = conversation.SMSHandler()
+        application.add_handler(h.conv_handler)
+        h = conversation.NoteHandler()
+        application.add_handler(h.conv_handler)
+        h = conversation.INNHandler()
+        application.add_handler(h.conv_handler)
 
         # Регистрация обработчика на текстовые сообщения, но не команды
         application.add_handler(tel.MessageHandler(tel.filters.TEXT & ~tel.filters.COMMAND, handlers.text_handler))
@@ -84,9 +91,11 @@ def start():
         application.add_handler(tel.CommandHandler(tc.TEL_START, callback=handlers.start))
         application.add_handler(tel.CommandHandler(tc.TEL_HELP, callback=handlers.print_help))
         application.add_handler(tel.CallbackQueryHandler(handlers.query_handler))
-        application.add_handler(tel.CommandHandler(tc.TEL_NOTIFICATIONS, callback=handlers.notifications))
+        # application.add_handler(tel.CommandHandler(tc.TEL_NOTIFICATIONS, callback=handlers.notifications))
 
-        handlers.start_jobs(application.job_queue)
+        # в тестовой версии убираю рассылки
+        if config['database'].lower() != 'vkb_test1':
+            handlers.start_jobs(application.job_queue)
 
         return application
     except (Exception,):
@@ -103,7 +112,7 @@ def run_polling(application):
 
 
 # запуск из сервиса, написал свой цикл, run_polling не работает
-async def run_cicle(application):
+async def run_cycle(application):
     # Запуск бота
     try:
         await application.initialize()
@@ -127,4 +136,4 @@ async def run_cicle(application):
 if __name__ == '__main__':
     app = start()
     run_polling(app)
-    # asyncio.run(run_cicle(app))
+    # asyncio.run(run_cycle(app))
