@@ -4,7 +4,7 @@ from logging.handlers import SocketHandler
 import telegram.ext as tel
 from sql_execute import SQLExecuter
 import tel_consts as tc
-from tel_answers_generator import answers_generator
+from generators.tel_answers_generator import answers_generator
 import warnings
 import json
 from os.path import exists, abspath, dirname
@@ -15,6 +15,15 @@ import sys
 from tendo import singleton
 from telegram.warnings import PTBUserWarning
 import conversation
+from generators.tel_accounts import AccountsGenerator
+from generators.tel_tasks import TasksGenerator
+from generators.tel_coordinations import CoordinationsGenerator
+from generators.tel_petitions import PetitionsGenerator
+from generators.tel_documents import DocumentsGenerator
+from generators.tel_clients import ClientsGenerator
+from generators.tel_common import CommonGenerator
+from generators.tel_show_sheets import ShowSheetsGenerator
+from generators.tel_specifications import SpecificationsGenerator
 
 
 def start():
@@ -67,6 +76,26 @@ def start():
             config['user'],
             config['password'],
         )
+
+        # регистрируем кастомные генераторы ответов
+        # для общих методов
+        answers_generator.add_custom_generator(CommonGenerator)
+        # для счетов
+        answers_generator.add_custom_generator(AccountsGenerator)
+        # для задач
+        answers_generator.add_custom_generator(TasksGenerator)
+        # для согласования
+        answers_generator.add_custom_generator(CoordinationsGenerator)
+        # для заявок
+        answers_generator.add_custom_generator(PetitionsGenerator)
+        # для документов
+        answers_generator.add_custom_generator(DocumentsGenerator)
+        # для клиентов
+        answers_generator.add_custom_generator(ClientsGenerator)
+        # для смотровых листов
+        answers_generator.add_custom_generator(ShowSheetsGenerator)
+        # спецификации
+        answers_generator.add_custom_generator(SpecificationsGenerator)
 
         # создание бота
         application = tel.Application.builder().token(config['token']).build()

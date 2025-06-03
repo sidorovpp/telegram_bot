@@ -7,7 +7,7 @@ from telegram.constants import ParseMode
 import telegram.ext as tel
 from datetime import datetime, timedelta
 import tel_consts as tc
-from tel_answers_generator import answers_generator, get_json_params, parse_params
+from generators.tel_answers_generator import answers_generator, get_json_params, parse_params
 from tel_menu import get_main_menu, make_buttons_menu
 from utils import create_shared_file, read_qr_code, send_error
 from handlers_common import reply_by_ident

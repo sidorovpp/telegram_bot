@@ -1,4 +1,4 @@
-from tel_answers_generator import answers_generator
+from generators.tel_answers_generator import answers_generator
 from utils import get_shared_file
 from telegram import InlineKeyboardMarkup, Message, Bot
 from telegram.constants import ParseMode

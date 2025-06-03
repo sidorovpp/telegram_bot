@@ -4,7 +4,7 @@ import logging
 import traceback
 from utils import send_sms_to_service, send_error
 import json
-from tel_answers_generator import answers_generator, get_json_params
+from generators.tel_answers_generator import answers_generator, get_json_params
 import tel_consts as tc
 from handlers_common import reply_by_ident
 from inn import validate, only_digits
